@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Scrollbar, A11y, Autoplay, Navigation } from "swiper";
 import { Swiper, SwiperSlide } from "swiper/react";
 import "swiper/css/bundle";
@@ -12,15 +12,78 @@ import useGlobalContext from "@/hooks/use-context";
 import { wishlist_product } from "@/redux/slices/wishlistSlice";
 import GetRatting from "@/hooks/GetRatting";
 import { categoryData } from "@/data/json-data/category-data";
-import { productData } from "@/data/json-data/product-data";
+// import { productData } from "@/data/json-data/product-data";
+import axios from "axios";
+import { CartProductTypeTwo, Product } from "@/interFace/interFace";
+// import nextConfig from "../../../next.config";
 
-const  ProductSlider = () => {
+interface ProductSliderProps {
+  onProductSelect: (product: CartProductTypeTwo) => void;
+}
+
+// const ProductSlider = () => {
+const ProductSlider: React.FC<ProductSliderProps> = ({ onProductSelect }) => {
   const { setOpenModal, openModal, setModalId } = useGlobalContext();
   const dispatch = useDispatch();
   const [searchValue, setSearchValue] = useState("fruit & vegetables");
-  const products = productData.filter(
-    (item) => item.categoryName === searchValue
-  );
+  // const products = productData.filter(
+  //   (item) => item.categoryName === searchValue
+  // );
+  const [products, setProducts] = useState<CartProductTypeTwo[]>([]);
+
+  useEffect(() => {
+    const apiUrl = "http://localhost:1337/api/products?populate=*";
+
+    axios
+      .get(apiUrl)
+      .then((response) => {
+        if (response.data && Array.isArray(response.data.data)) {
+          const transformedProducts = response.data.data.map(
+            (item: { attributes: any; id?: any }) => {
+              const {
+                id,
+                attributes: {
+                  productName,
+                  averageRating,
+                  oldPrice,
+                  productDetails,
+                  img: { data },
+                  subcategoryName,
+                  productStatus,
+                },
+              } = item;
+
+              const imageUrl =
+                data?.map((imageData: any) => imageData.attributes.url) || [];
+
+              return {
+                _id: id.toString(),
+                categoryName: item.attributes.categoryName || "",
+                oldPrice: oldPrice || 0,
+                price: oldPrice || 0,
+                averageRating: averageRating || 0,
+                productQuantity: 0,
+                subcategoryName: subcategoryName || "",
+                img: imageUrl,
+                date: "Some Date",
+                offer: false,
+                offerPersent: 0,
+                productStatus: productStatus || "",
+                numRatings: averageRating || 0,
+                ...productDetails,
+              };
+            }
+          );
+
+          setProducts(transformedProducts);
+        } else {
+          console.error("Invalid response data format:", response.data);
+        }
+      })
+      .catch((error) => {
+        console.error("Error fetching product data:", error);
+      });
+  }, []);
 
   const handleMoldalData = (id: string) => {
     if (id) {
@@ -47,11 +110,14 @@ const  ProductSlider = () => {
                     {categoryData.length ? (
                       <>
                         {categoryData.slice(0, 4).map((item) => (
-                          
                           <button
                             onClick={() => setSearchValue(item.categoryName)}
                             key={item._id}
-                            className={`text-capitalize category-nav ${searchValue === item.categoryName ? "nav-link active": "nav-link"}`}
+                            className={`text-capitalize category-nav ${
+                              searchValue === item.categoryName
+                                ? "nav-link active"
+                                : "nav-link"
+                            }`}
                           >
                             {" "}
                             {item.categoryName}{" "}
@@ -122,13 +188,19 @@ const  ProductSlider = () => {
                                               href={`/shop-details/${item._id}`}
                                             >
                                               <Image
+                                                key={item._id}
                                                 width={500}
                                                 height={500}
                                                 style={{
                                                   width: "100%",
-                                                  height: "auto",
+                                                  height: "100%",
                                                 }}
-                                                src={item.img}
+                                                src={
+                                                  Array.isArray(item.img) &&
+                                                  item.img.length > 0
+                                                    ? item.img[0]
+                                                    : "/placeholder-image.jpg"
+                                                }
                                                 alt="product-img"
                                               />
                                             </Link>
@@ -138,9 +210,10 @@ const  ProductSlider = () => {
                                                 data-toggle="tooltip"
                                                 data-placement="top"
                                                 title="Quick Shop"
-                                                onClick={() =>
-                                                  dispatch(cart_product(item))
-                                                }
+                                                onClick={() => {
+                                                  dispatch(cart_product(item));
+                                                  onProductSelect(item); // Notify parent component about the selected product
+                                                }}
                                               >
                                                 <i className="fal fa-cart-arrow-down"></i>
                                               </span>
@@ -180,31 +253,37 @@ const  ProductSlider = () => {
                                               </Link>
                                             </h4>
                                             <div className="bd-product__price">
-                                          {item?.offer === true ? (
-                                            <span className="bd-product__old-price">
-                                              <del>
-                                                {`$${
-                                                  item?.oldPrice % 1 === 0
-                                                    ? `${item?.oldPrice}.00`
-                                                    : item?.oldPrice.toFixed(2)
-                                                }`}
-                                              </del>
-                                            </span>
-                                          ) : (
-                                            <></>
-                                          )}
+                                              {item?.offer === true ? (
+                                                <span className="bd-product__old-price">
+                                                  <del>
+                                                    {`$${
+                                                      item?.oldPrice % 1 === 0
+                                                        ? `${item?.oldPrice}.00`
+                                                        : item?.oldPrice.toFixed(
+                                                            2
+                                                          )
+                                                    }`}
+                                                  </del>
+                                                </span>
+                                              ) : (
+                                                <></>
+                                              )}
 
-                                          {item?.price % 1 === 0 ? (
-                                            <span className="bd-product__new-price">${`${item?.price}.00`}</span>
-                                          ) : (
-                                            <span className="bd-product__new-price">
-                                              ${item?.price.toFixed(2)}
-                                            </span>
-                                          )}
-                                        </div>
+                                              {item?.price % 1 === 0 ? (
+                                                <span className="bd-product__new-price">
+                                                  ${`${item?.price}.00`}
+                                                </span>
+                                              ) : (
+                                                <span className="bd-product__new-price">
+                                                  ${item?.price?.toFixed(2)}
+                                                </span>
+                                              )}
+                                            </div>
                                             <div className="bd-product__icon">
                                               <GetRatting
-                                                averageRating={item.averageRating}
+                                                averageRating={
+                                                  item.averageRating
+                                                }
                                               />
                                             </div>
                                           </div>
